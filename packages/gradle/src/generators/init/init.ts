@@ -3,13 +3,12 @@ import {
   formatFiles,
   GeneratorCallback,
   globAsync,
-  logger,
   readNxJson,
   runTasksInSerial,
   Tree,
   updateNxJson,
 } from '@nx/devkit';
-import { nxVersion } from '../../utils/versions';
+import { gradlePluginVersion, nxVersion } from '../../utils/versions';
 import { InitGeneratorSchema } from './schema';
 import { hasGradlePlugin } from '../../utils/has-gradle-plugin';
 import { dirname, join, basename } from 'path';
@@ -90,50 +89,20 @@ function addProjectReportToBuildGradle(settingsGradleFile: string, tree: Tree) {
     buildGradleContent = tree.read(gradleFilePath).toString();
   }
 
-  if (buildGradleContent.includes('allprojects')) {
-    if (!buildGradleContent.includes('"project-report"')) {
-      logger.warn(`Please add the project-report plugin to your ${gradleFilePath}:
-allprojects {
-  apply {
-      plugin("project-report")
-  }
-}`);
+  if (buildGradleContent.includes('plugins {')) {
+    if (!buildGradleContent.includes('"io.nx.gradle.plugin.Nodes"')) {
+      buildGradleContent = buildGradleContent.replace(
+        'plugins {',
+        `plugins {
+    id("io.nx.gradle.plugin.Nodes") version("${gradlePluginVersion}")`
+      );
     }
   } else {
-    buildGradleContent += `\n\rallprojects {
-  apply {
-      plugin("project-report")
-  }
+    buildGradleContent += `\n\rplugins {
+    id("io.nx.gradle.plugin.Nodes") version("${gradlePluginVersion}")
 }`;
   }
 
-  if (!buildGradleContent.includes(`tasks.register("projectReportAll")`)) {
-    if (gradleFilePath.endsWith('.kts')) {
-      buildGradleContent += `\n\rtasks.register("projectReportAll") {
-    // All project reports of subprojects
-    allprojects.forEach {
-        dependsOn(it.tasks.get("projectReport"))
-    }
-
-    // All projectReportAll of included builds
-    gradle.includedBuilds.forEach {
-        dependsOn(it.task(":projectReportAll"))
-    }
-}`;
-    } else {
-      buildGradleContent += `\n\rtasks.register("projectReportAll") {
-        // All project reports of subprojects
-        allprojects.forEach {
-            dependsOn(it.tasks.getAt("projectReport"))
-        }
-    
-        // All projectReportAll of included builds
-        gradle.includedBuilds.forEach {
-            dependsOn(it.task(":projectReportAll"))
-        }
-    }`;
-    }
-  }
   if (buildGradleContent) {
     tree.write(gradleFilePath, buildGradleContent);
   }

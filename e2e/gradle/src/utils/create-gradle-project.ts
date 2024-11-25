@@ -3,6 +3,7 @@ import {
   isWindows,
   runCommand,
   tmpProjPath,
+  updateFile,
 } from '@nx/e2e/utils';
 import { execSync } from 'child_process';
 import { createFileSync, writeFileSync } from 'fs-extra';
@@ -15,14 +16,10 @@ export function createGradleProject(
   packageName: string = 'gradleProject',
   addProjectJsonNamePrefix: string = ''
 ) {
-  e2eConsoleLogger(
-    `Using java version: ${execSync('java -version')} ${execSync(
-      'echo $JAVA_HOME'
-    )}`
-  );
+  e2eConsoleLogger(`Using java version: ${execSync('java -version')}`);
   const gradleCommand = isWindows()
-    ? resolve(`${__dirname}/../../gradlew.bat`)
-    : resolve(`${__dirname}/../../gradlew`);
+    ? resolve(`${__dirname}/../../../../packages/gradle/native/gradlew.bat`)
+    : resolve(`${__dirname}/../../../../packages/gradle/native/gradlew`);
   e2eConsoleLogger(
     'Using gradle version: ' +
       execSync(`${gradleCommand} --version`, {
@@ -60,4 +57,31 @@ export function createGradleProject(
       `{"name": "${addProjectJsonNamePrefix}utilities"}`
     );
   }
+
+  addLocalPluginManagement(`settings.gradle${type === 'kotlin' ? '.kts' : ''}`);
+  addLocalPluginManagement(
+    `buildSrc/settings.gradle${type === 'kotlin' ? '.kts' : ''}`
+  );
+
+  e2eConsoleLogger(
+    execSync(`${gradleCommand} publishToMavenLocal`, {
+      cwd: `${__dirname}/../../../../packages/gradle/native`,
+    }).toString()
+  );
+}
+
+function addLocalPluginManagement(file: string) {
+  updateFile(
+    file,
+    (content) =>
+      `pluginManagement {
+    repositories {
+        mavenLocal()
+        gradlePluginPortal()
+        mavenCentral()
+        // Add other repositories if needed
+    }
+}
+` + content
+  );
 }
